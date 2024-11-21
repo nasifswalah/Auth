@@ -99,6 +99,9 @@ export const login = (req, res) => {
     res.send("Login Controller");
 };
 
+// Logout controller
 export const logout = (req, res) => {
-    res.send("Logout controller");
+    // Clear cookie
+    res.clearCookie('token');
+    res.status(200).json({success: true, message: "Logged out successfully"});
 };
