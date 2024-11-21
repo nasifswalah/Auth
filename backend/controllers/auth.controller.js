@@ -3,7 +3,7 @@ import crypto from 'crypto';
 
 import { User } from "../models/user.model.js";
 import { generateTokenAndSetCookie } from '../utils/generateTokenAndSetCookie.js';
-import { sendPasswordResetEmail, sendVerificationEmail, sendWelcomeEmail } from '../mailtrap/emails.js';
+import { sendPasswordResetEmail, sendPasswordResetSuccessfull, sendVerificationEmail, sendWelcomeEmail } from '../mailtrap/emails.js';
 
 // Signup controller 
 export const signup = async (req, res) => {
@@ -168,6 +168,49 @@ export const forget_password = async (req, res) => {
         await sendPasswordResetEmail(user.email, `${process.env.CLIENT_URL}/reset-password/${resetPasswordToken}`);
 
         res.status(200).json({success: true, message: "Password reset link shared to your email"});
+    } catch (error) {
+        res.status(400).json({success: false, message: error.message});
+    };
+};
+
+// Reset password controller
+export const reset_password = async (req, res) => {
+    // Extract token from parameter
+    const { token } = req.params;
+    const { password } = req.body;
+
+    try {
+        // Check user and token valid or not
+        const user = await User.findOne({
+            resetPasswordToken: token,
+            resetPasswordExpiresAt: { $gt: Date.now() },
+        });
+        if(!user){
+            return res.status(400).json({success: false, message: "Invalid or expired reset token"});
+        };
+
+        // Hashing new password
+        const hashedPassword = await bcryptjs.hash(password, 10);
+
+        // Update user with new password and remove existing token and expire time
+        user.password = hashedPassword;
+        user.resetPasswordToken = undefined;
+        user.resetPasswordExpiresAt = undefined;
+
+        // Save updated user
+        await user.save();
+
+        // Send password reset successfull email
+        await sendPasswordResetSuccessfull(user.email);
+
+        res.status(200).json({
+            success: true,
+            message: "Password reset successfully",
+            user: {
+                ...user._doc,
+                password: undefined
+            }
+        });
     } catch (error) {
         res.status(400).json({success: false, message: error.message});
     };
