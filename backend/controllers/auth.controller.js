@@ -1,8 +1,9 @@
 import bcryptjs from 'bcryptjs';
+import crypto from 'crypto';
 
 import { User } from "../models/user.model.js";
 import { generateTokenAndSetCookie } from '../utils/generateTokenAndSetCookie.js';
-import { sendVerificationEmail, sendWelcomeEmail } from '../mailtrap/emails.js';
+import { sendPasswordResetEmail, sendVerificationEmail, sendWelcomeEmail } from '../mailtrap/emails.js';
 
 // Signup controller 
 export const signup = async (req, res) => {
@@ -95,6 +96,7 @@ export const verifyEmail = async (req, res) => {
     };
 };
 
+// Login controller
 export const login = async (req, res) => {
     const {email, password} = req.body;
 
@@ -138,4 +140,35 @@ export const logout = (req, res) => {
     // Clear cookie
     res.clearCookie('token');
     res.status(200).json({success: true, message: "Logged out successfully"});
+};
+
+// Forget password controller
+export const forget_password = async (req, res) => {
+    const {email} = req.body;
+
+    try {
+        // Check user exist or not
+        const user = await User.findOne({email});
+        if(!user){
+            return res.status(400).json({success: false, message: "Invalid email"});
+        };
+
+        // Generate reset password token and update expire date
+        const resetPasswordToken = crypto.randomBytes(20).toString("hex");
+        const resetPasswordTokenExpires = Date.now() + 1 * 60 * 60 * 1000;
+
+        // Update reset password token and expiry time with new generated values
+        user.resetPasswordToken = resetPasswordToken;
+        user.resetPasswordExpiresAt = resetPasswordTokenExpires;
+
+        // Save updated user
+        await user.save();
+
+        // Call function to send reset password email 
+        await sendPasswordResetEmail(user.email, `${process.env.CLIENT_URL}/reset-password/${resetPasswordToken}`);
+
+        res.status(200).json({success: true, message: "Password reset link shared to your email"});
+    } catch (error) {
+        res.status(400).json({success: false, message: error.message});
+    };
 };
