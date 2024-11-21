@@ -80,7 +80,7 @@ export const verifyEmail = async (req, res) => {
         user.verificationTokenExpiresAt = undefined;
 
         // Save updated user
-        user.save();
+        await user.save();
 
         res.status(200).json({
             success: true,
@@ -95,8 +95,42 @@ export const verifyEmail = async (req, res) => {
     };
 };
 
-export const login = (req, res) => {
-    res.send("Login Controller");
+export const login = async (req, res) => {
+    const {email, password} = req.body;
+
+    try {
+        // Check the user exist or not
+        const user = await User.findOne({email});
+        if(!user){
+           return res.status(400).json({success: false, message: "Invalid credentials"});
+        };
+
+        // Check the password is valid
+        const isPasswordValid = await bcryptjs.compare(password, user.password);
+        if(!isPasswordValid){
+            return res.status(400).json({success: false, message: "Invalid creadentials"})
+        }
+
+        // Generate jwt token
+        generateTokenAndSetCookie(res, user._id);
+
+        // Reset last login date
+        user.lastLogin = new Date();
+
+        // Save updated user
+        await user.save();
+
+        res.status(200).json({
+            success: true,
+            message: "Logged in successfully",
+            user: {
+                ...user._doc,
+                password: undefined
+            }
+        });
+    } catch (error) {
+        res.status(400).json({success: false, message: error.message});
+    }
 };
 
 // Logout controller
